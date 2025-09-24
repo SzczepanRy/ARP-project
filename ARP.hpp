@@ -2,9 +2,14 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <pcap.h>
 #include <sstream>
 #include <winsock2.h>
+
+
+#include "types.hpp"
+
 
 struct ethernet_header {
   u_char dest[6];
@@ -41,21 +46,22 @@ public:
   u_char my_ip[4];
 
   // result
+  std::map<int, Host> Result;
 
   ARPScaner() {
     listDevices();
     openDevice();
     captureFilter();
-    std::cout<<"reading file\n";
+    std::cout << "reading file\n";
     readFile();
-    std::cout<<"building frame\n";
+    std::cout << "building frame\n";
     buildFrame();
 
-    std::cout<<"sending querys\n";
+    std::cout << "sending querys\n";
     sendQuerys();
 
-    std::cout<<"listening\n";
-    listen();
+    std::cout << "listening\n";
+    listen(2);
   }
 
   void listDevices() {
@@ -182,11 +188,12 @@ public:
     }
   }
 
-  void listen() {
+  void listen(int timeout) {
     struct pcap_pkthdr *header;
     const u_char *recv_packet;
     time_t start = time(nullptr);
-    while (difftime(time(nullptr), start) < 5.0) { // listen 5 seconds
+    int id = 0;
+    while (difftime(time(nullptr), start) < timeout) { // listen 5 seconds
       int res = pcap_next_ex(handle, &header, &recv_packet);
       if (res <= 0)
         continue;
@@ -196,17 +203,31 @@ public:
         arp_header *arp_reply =
             (arp_header *)(recv_packet + sizeof(ethernet_header));
         if (ntohs(arp_reply->opcode) == 2) {
-          printf(
-              "Reply from IP %d.%d.%d.%d MAC %02x:%02x:%02x:%02x:%02x:%02x\n",
-              arp_reply->sender_ip[0], arp_reply->sender_ip[1],
-              arp_reply->sender_ip[2], arp_reply->sender_ip[3],
-              arp_reply->sender_mac[0], arp_reply->sender_mac[1],
-              arp_reply->sender_mac[2], arp_reply->sender_mac[3],
-              arp_reply->sender_mac[4], arp_reply->sender_mac[5]);
+
+          std::stringstream ip_ss;
+          for (int i = 0; i < 4; ++i) {
+            ip_ss << static_cast<int>(arp_reply->sender_ip[i]);
+            if (i < 3)
+              ip_ss << ".";
+          }
+          Result[id].ip = ip_ss.str();
+
+          std::stringstream mac_ss;
+          for (int i = 0; i < 6; ++i) {
+            mac_ss << std::hex << std::uppercase << std::setw(2)
+                   << std::setfill('0')
+                   << static_cast<int>(arp_reply->sender_mac[i]);
+            if (i < 5)
+              mac_ss << ":";
+          }
+          Result[id].mac = mac_ss.str();
+          id += 1;
         }
       }
     }
   }
+
+  std::map<int, Host> GetResult() { return Result; }
 
   ~ARPScaner() {
     // Cleanup
