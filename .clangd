@@ -1,0 +1,5 @@
+CompileFlags:
+  Add: [
+    -IC:/Npcap-SDK/Include,
+    -LC:/Users/Szczepan/Desktop/code/share/CPP/ARPproject
+  ]
