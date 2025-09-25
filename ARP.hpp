@@ -5,11 +5,10 @@
 #include <map>
 #include <pcap.h>
 #include <sstream>
+#include <vector>
 #include <winsock2.h>
 
-
 #include "types.hpp"
-
 
 struct ethernet_header {
   u_char dest[6];
@@ -149,8 +148,6 @@ public:
     // Build Ethernet + ARP frame
     // Ethernet header
     memset(eth->dest, 0xff, 6); // Broadcast
-                                //
-                                //    memcpy(eth->src, my_mac, 6);//
 
     eth->type = htons(0x0806); // ARP
 
@@ -168,9 +165,32 @@ public:
 
   void sendQuerys() {
 
+    std::vector<int> octets;
+    while (true) {
+
+      std::cout
+          << "provide the three first octets of network [ex: 192.168.1]: \n";
+      std::string input;
+      std::cin >> input;
+
+      std::stringstream stream(input);
+      std::string octet;
+
+      while (std::getline(stream, octet, '.')) {
+        int number = std::atoi(octet.c_str());
+        octets.push_back(number);
+      }
+
+      if (octets.size() == 3) {
+        break;
+      } else {
+        std::cout << "Wrong input\n";
+      }
+    }
+
     for (int i = 1; i < 255; i++) {
       memset(arp->target_mac, 0x00, 6);
-      u_char target_ip[4] = {192, 168, 1, (u_char)i};
+      u_char target_ip[4] = {(u_char)octets[0], (u_char)octets[1], (u_char)octets[2], (u_char)i};
       memcpy(arp->target_ip, target_ip, 4);
 
       // Send packet
@@ -179,11 +199,6 @@ public:
                   << std::endl;
       } else {
         //  printf("ARP request sent. to : 192.168.1.%d\n", i);
-        /*
-         struct pcap_pkthdr *header;
-          const u_char *recv_packet;
-          int res;
-          */
       }
     }
   }
@@ -193,7 +208,7 @@ public:
     const u_char *recv_packet;
     time_t start = time(nullptr);
     int id = 0;
-    while (difftime(time(nullptr), start) < timeout) { // listen 5 seconds
+    while (difftime(time(nullptr), start) < timeout) { // listen X seconds
       int res = pcap_next_ex(handle, &header, &recv_packet);
       if (res <= 0)
         continue;
